@@ -1,0 +1,18 @@
+# Dependencies
+node_modules/
+
+# Actual Budget server data
+data/
+
+# Import files (contain personal financial data)
+imports/
+
+# Config with secrets
+config/accounts.yml
+
+# OS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
