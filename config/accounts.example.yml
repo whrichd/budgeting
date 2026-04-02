@@ -1,0 +1,16 @@
+actual:
+  serverURL: "http://localhost:5006"
+  password: "your-password"
+  budgetId: "your-sync-id"  # Found in Actual Budget → Settings → Advanced → Sync ID
+
+# Map account keys to Actual Budget account UUIDs.
+# Get UUIDs from: Actual Budget → click account → Settings icon → look at URL or use API.
+accounts:
+  td_chequing: "actual-account-uuid"
+  td_credit: "actual-account-uuid"
+  cibc_chequing: "actual-account-uuid"
+  cibc_credit: "actual-account-uuid"
+  amex: "actual-account-uuid"
+  eq_savings: "actual-account-uuid"
+  ws_chequing: "actual-account-uuid"
+  ws_credit: "actual-account-uuid"
