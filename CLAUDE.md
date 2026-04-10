@@ -22,7 +22,7 @@ Personal budgeting system built on Actual Budget (self-hosted) with CSV import f
 ## Commands
 
 ```bash
-docker run -d -p 5006:5006 -v $(pwd)/data:/data --name actual_budget actualbudget/actual-server:latest
+./start.sh                                            # Start Actual Budget (pinned to v26.4.0)
 node src/cli.js import ./imports/                     # Import EQ Bank + WS CSVs
 node src/cli.js import --dry-run ./imports/           # Parse without importing
 node src/cli.js import --account ws_chequing file.csv # Explicit account
