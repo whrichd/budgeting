@@ -144,7 +144,7 @@ program
     for (const acct of accounts) {
       const type = acct.offbudget ? 'tracking' : 'on-budget';
       const closed = acct.closed ? ' (closed)' : '';
-      console.log(`  ${acct.name.padEnd(30)} ${type.padEnd(12)} ${closed}`);
+      console.log(`  ${acct.name.padEnd(30)} ${type.padEnd(12)} ${acct.id}${closed}`);
     }
 
     await disconnect();
