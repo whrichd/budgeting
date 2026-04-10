@@ -18,6 +18,7 @@ Personal budgeting system built on Actual Budget (self-hosted) with CSV import f
 | Amex Canada | OFX file | Actual Budget UI (built-in) |
 | EQ Bank | CSV file | CLI: `node src/cli.js import` |
 | Wealthsimple | CSV file (two formats: chequing + credit card) | CLI: `node src/cli.js import` |
+| Wealthsimple | Holdings report CSV | CLI: `node src/cli.js holdings` |
 
 ## Commands
 
@@ -27,7 +28,27 @@ node src/cli.js import ./imports/                     # Import EQ Bank + WS CSVs
 node src/cli.js import --dry-run ./imports/           # Parse without importing
 node src/cli.js import --account ws_chequing file.csv # Explicit account
 node src/cli.js balances                              # Show balances
+node src/cli.js holdings ./imports/holdings-report-*.csv      # Update investment balances
+node src/cli.js holdings --dry-run ./imports/holdings-*.csv   # Preview without updating
 ```
+
+### Holdings Setup
+
+To track Wealthsimple investment account balances (RRSP, TFSA):
+
+1. Create two **tracking accounts** in Actual Budget (Settings → Add Account → Off-budget)
+   - Name them e.g. "WS RRSP" and "WS TFSA"
+2. Get each account's UUID from Actual Budget (Settings → Advanced → Show IDs, then click the account)
+3. Add them to `config/accounts.yml`:
+   ```yaml
+   accounts:
+     ws_rrsp: "the-rrsp-account-uuid"
+     ws_tfsa: "the-tfsa-account-uuid"
+   ```
+4. Download the holdings report CSV from Wealthsimple (Accounts → Download → Holdings report)
+5. Run: `node src/cli.js holdings ./imports/holdings-report-2026-04-10.csv`
+
+Repeat monthly to track net worth over time. Fetches live USD/CAD rate from Bank of Canada for currency conversion.
 
 ## Key Conventions
 

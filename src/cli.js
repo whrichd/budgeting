@@ -5,7 +5,8 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { resolve, basename, extname } from 'path';
 import { detectParser } from './parsers/index.js';
 import { getAccountId, getAvailableAccounts } from './config.js';
-import { connect, importTransactions, getAccounts, disconnect } from './actual.js';
+import { connect, importTransactions, getAccounts, getAccountBalance, disconnect } from './actual.js';
+import { isHoldingsReport, parseHoldingsReport } from './holdings.js';
 
 const program = new Command();
 
@@ -46,6 +47,11 @@ program
     for (const filePath of files) {
       const filename = basename(filePath);
       const content = readFileSync(filePath, 'utf-8');
+
+      if (isHoldingsReport(content, filename)) {
+        console.log(`  [SKIP] ${filename} — holdings report (use 'holdings' command)`);
+        continue;
+      }
 
       const detected = detectParser(content, filename, opts.account);
 
@@ -142,6 +148,86 @@ program
     }
 
     await disconnect();
+  });
+
+// --- Holdings / net worth ---
+
+const HOLDINGS_ACCOUNT_MAP = {
+  'RRSP': 'ws_rrsp',
+  'TFSA': 'ws_tfsa',
+};
+
+program
+  .command('holdings')
+  .description('Update investment account balances from Wealthsimple holdings report')
+  .argument('<file>', 'Holdings report CSV file')
+  .option('--dry-run', 'Show totals without updating Actual Budget')
+  .action(async (filePath, opts) => {
+    const absPath = resolve(filePath);
+    const content = readFileSync(absPath, 'utf-8');
+    const filename = basename(absPath);
+
+    if (!isHoldingsReport(content, filename)) {
+      console.error('File does not appear to be a Wealthsimple holdings report.');
+      process.exit(1);
+    }
+
+    console.log('Parsing holdings report...');
+    const { accounts, date, usdCadRate } = await parseHoldingsReport(content);
+
+    console.log(`\nReport date: ${date || 'unknown'}`);
+    console.log(`USD/CAD rate: ${usdCadRate.toFixed(4)}\n`);
+
+    for (const acct of accounts) {
+      const unrealized = acct.marketValueCAD - acct.bookValueCAD;
+      const sign = unrealized >= 0 ? '+' : '';
+      console.log(`  ${acct.name.padEnd(8)} ${acct.holdings} holdings  Market: $${acct.marketValueCAD.toFixed(2).padStart(12)}  Book: $${acct.bookValueCAD.toFixed(2).padStart(12)}  ${sign}$${unrealized.toFixed(2)}`);
+    }
+
+    if (opts.dryRun) {
+      console.log('\nDry run — not updating Actual Budget.');
+      return;
+    }
+
+    console.log('\nConnecting to Actual Budget...');
+    await connect();
+
+    for (const acct of accounts) {
+      const accountKey = HOLDINGS_ACCOUNT_MAP[acct.name];
+      if (!accountKey) {
+        console.log(`  [SKIP] ${acct.name} — no account mapping (add to HOLDINGS_ACCOUNT_MAP)`);
+        continue;
+      }
+
+      const accountId = getAccountId(accountKey);
+      const currentBalance = await getAccountBalance(accountId);
+      const targetBalance = Math.round(acct.marketValueCAD * 100); // cents
+      const diff = targetBalance - currentBalance;
+
+      if (diff === 0) {
+        console.log(`  ${acct.name} — already up to date ($${(currentBalance / 100).toFixed(2)})`);
+        continue;
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const txn = {
+        date: today,
+        amount: diff,
+        payee_name: 'Balance adjustment',
+        imported_id: `holdings-${acct.name.toLowerCase()}-${today}`,
+        notes: `Holdings report ${date || today} — market value update`,
+      };
+
+      const result = await importTransactions(accountId, [txn]);
+      const added = result?.added?.length ?? 0;
+      const updated = result?.updated?.length ?? 0;
+
+      const arrow = diff > 0 ? '↑' : '↓';
+      console.log(`  ${acct.name} — ${arrow} $${(Math.abs(diff) / 100).toFixed(2)} adjustment → $${(targetBalance / 100).toFixed(2)} (${added} added, ${updated} updated)`);
+    }
+
+    await disconnect();
+    console.log('\nDone.');
   });
 
 // --- Splitwise commands ---

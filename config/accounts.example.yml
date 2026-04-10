@@ -13,5 +13,7 @@ accounts:
   eq_savings: "actual-account-uuid"
   ws_chequing: "actual-account-uuid"
   ws_credit: "actual-account-uuid"
-  splitwise_receivable: "actual-account-uuid"  # Off-budget tracking account
-  splitwise_payable: "actual-account-uuid"     # Off-budget tracking account
+  ws_rrsp: "actual-account-uuid"                # Off-budget tracking account (holdings)
+  ws_tfsa: "actual-account-uuid"                # Off-budget tracking account (holdings)
+  splitwise_receivable: "actual-account-uuid"   # Off-budget tracking account
+  splitwise_payable: "actual-account-uuid"      # Off-budget tracking account

@@ -27,6 +27,10 @@ export async function getAccounts() {
   return await api.getAccounts();
 }
 
+export async function getAccountBalance(accountId) {
+  return await api.getAccountBalance(accountId);
+}
+
 export async function disconnect() {
   await api.sync();
   await api.shutdown();
