@@ -157,6 +157,69 @@ If the server runs on one laptop and you run CLI tools from another:
    ```
 3. Everything else works the same — the CLI talks to the server over Tailscale
 
+## Auto-Start on Boot (macOS with Colima)
+
+If your server is a Mac running Colima for Docker, create a LaunchAgent so Actual Budget starts automatically on login. If you also run Home Assistant, combine them into one plist so Colima only starts once.
+
+### Install
+
+```bash
+cat <<'EOF' > ~/Library/LaunchAgents/com.server.colima.plist
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.server.colima</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>colima start --cpu 4 --memory 4 &amp;&amp; docker start actual_budget &amp;&amp; docker start homeassistant</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/colima-server.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/colima-server.err.log</string>
+</dict>
+</plist>
+EOF
+
+launchctl load ~/Library/LaunchAgents/com.server.colima.plist
+```
+
+Remove the `docker start homeassistant` line if you don't run Home Assistant.
+
+**Note:** If `colima` is installed via MacPorts, use the full path (e.g., `/opt/local/bin/colima`). Check with `which colima`.
+
+### Uninstall
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.server.colima.plist
+rm ~/Library/LaunchAgents/com.server.colima.plist
+```
+
+### Check logs
+
+```bash
+cat /tmp/colima-server.out.log
+cat /tmp/colima-server.err.log
+```
+
+### Prevent macOS sleep (server machine)
+
+The server needs to stay awake. No third-party apps needed:
+
+```bash
+# Keep awake on AC power, screen off after 1 minute
+sudo pmset -c sleep 0 displaysleep 1 disksleep 0
+
+# Revert to defaults
+sudo pmset -c sleep 1 displaysleep 10 disksleep 10
+```
+
 ## Upgrading Actual Budget
 
 Server and API versions must match. To upgrade:
