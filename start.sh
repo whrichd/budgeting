@@ -23,6 +23,7 @@ docker run \
   --restart=unless-stopped \
   -d \
   -p 5006:5006 \
+  -e ACTUAL_HTTPS=true \
   -v "$DATA_DIR:/data" \
   --name "$CONTAINER_NAME" \
   "actualbudget/actual-server:$VERSION"
