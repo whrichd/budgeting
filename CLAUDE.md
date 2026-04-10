@@ -38,6 +38,18 @@ node src/cli.js balances                              # Show balances
 - `@actual-app/api` version must match the Actual Budget server version (both v26.x).
 - Parser extensibility: add a new file in `src/parsers/`, export `detect(content, filename)` and `parse(content, filename)`, register in `src/parsers/index.js`.
 
+## Upgrading Actual Budget
+
+Server and API versions must match. To upgrade:
+
+1. Check latest version at https://actualbudget.org/docs/releases/
+2. Update `VERSION` in `start.sh`
+3. Update `image` tag in `docker-compose.yml`
+4. Run `npm install @actual-app/api@<same-version>`
+5. Restart: `./start.sh`
+
+If you see `out-of-sync-migrations` errors, the versions are mismatched.
+
 ## Phases
 
 - **Phase 1** (current): OFX import (TD/CIBC/Amex via UI) + CSV import (EQ Bank/Wealthsimple via CLI)
