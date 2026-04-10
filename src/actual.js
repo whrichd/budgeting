@@ -28,5 +28,6 @@ export async function getAccounts() {
 }
 
 export async function disconnect() {
+  await api.sync();
   await api.shutdown();
 }
