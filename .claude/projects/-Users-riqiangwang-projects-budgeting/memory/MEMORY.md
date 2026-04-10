@@ -1,0 +1,1 @@
+- [User Profile](user_profile.md) — Canadian user, 5 banks, Splitwise, Docker-ready, planning home server

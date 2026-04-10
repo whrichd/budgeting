@@ -3,7 +3,7 @@
 import { Command } from 'commander';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { resolve, basename, extname } from 'path';
-import { detectParser, resolveAccountFromFilename } from './parsers/index.js';
+import { detectParser } from './parsers/index.js';
 import { getAccountId, getAvailableAccounts } from './config.js';
 import { connect, importTransactions, getAccounts, disconnect } from './actual.js';
 
@@ -16,7 +16,7 @@ program
 
 program
   .command('import')
-  .description('Import CSV/XLS files into Actual Budget')
+  .description('Import CSV files into Actual Budget (EQ Bank, Wealthsimple)')
   .argument('<path>', 'File or directory to import')
   .option('--account <key>', 'Explicit account key (from accounts.yml)')
   .option('--dry-run', 'Parse and show results without importing')
@@ -27,14 +27,14 @@ program
     const stat = statSync(absPath);
     if (stat.isDirectory()) {
       files = readdirSync(absPath)
-        .filter(f => /\.(csv|xls|xlsx)$/i.test(f))
+        .filter(f => /\.csv$/i.test(f))
         .map(f => resolve(absPath, f));
     } else {
       files = [absPath];
     }
 
     if (files.length === 0) {
-      console.error('No CSV/XLS files found at', inputPath);
+      console.error('No CSV files found at', inputPath);
       process.exit(1);
     }
 
@@ -45,31 +45,20 @@ program
 
     for (const filePath of files) {
       const filename = basename(filePath);
-      const ext = extname(filePath).toLowerCase();
-      const isBinary = ext === '.xls' || ext === '.xlsx';
-
-      // For binary files, pass empty content — the parser reads the file directly
-      const content = isBinary ? '' : readFileSync(filePath, 'utf-8');
+      const content = readFileSync(filePath, 'utf-8');
 
       const detected = detectParser(content, filename, opts.account);
 
       if (!detected) {
-        console.error(`  [SKIP] ${filename} — could not detect bank format.`);
-        console.error(`         Use --account <key>. Available: ${getAvailableAccounts().join(', ')}`);
+        console.log(`  [SKIP] ${filename} — not a supported CSV format (use Actual Budget UI for OFX imports)`);
         continue;
       }
 
       let { parser, parserName, account } = detected;
 
-      // Tier 2: filename convention (for TD)
-      if (!account) {
-        account = resolveAccountFromFilename(filename);
-      }
-
       if (!account) {
         console.error(`  [SKIP] ${filename} — detected as ${parserName}, but cannot determine account.`);
-        console.error(`         Use --account <key> or rename file (e.g., td_credit.csv).`);
-        console.error(`         Available: ${getAvailableAccounts().join(', ')}`);
+        console.error(`         Use --account <key>. Available: ${getAvailableAccounts().join(', ')}`);
         continue;
       }
 
