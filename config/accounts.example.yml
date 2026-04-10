@@ -6,7 +6,12 @@ actual:
 # Map account keys to Actual Budget account UUIDs.
 # Only needed for CLI-imported accounts (EQ Bank, Wealthsimple).
 # TD, CIBC, and Amex use OFX import through the Actual Budget UI directly.
+splitwise:
+  apiKey: "your-splitwise-api-key"  # From https://secure.splitwise.com/apps
+
 accounts:
   eq_savings: "actual-account-uuid"
   ws_chequing: "actual-account-uuid"
   ws_credit: "actual-account-uuid"
+  splitwise_receivable: "actual-account-uuid"  # Off-budget tracking account
+  splitwise_payable: "actual-account-uuid"     # Off-budget tracking account

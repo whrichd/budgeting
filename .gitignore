@@ -9,6 +9,7 @@ imports/
 
 # Config with secrets
 config/accounts.yml
+config/splitwise-state.json
 
 # OS
 .DS_Store
