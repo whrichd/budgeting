@@ -2,6 +2,7 @@ actual:
   serverURL: "http://localhost:5006"
   password: "your-password"
   budgetId: "your-sync-id"  # Found in Actual Budget → Settings → Advanced → Sync ID
+  encryptionPassword: ""    # Optional — only if you enabled end-to-end encryption in Actual
 
 # Map account keys to Actual Budget account UUIDs.
 # Only needed for CLI-imported accounts (EQ Bank, Wealthsimple).
@@ -15,5 +16,7 @@ accounts:
   ws_credit: "actual-account-uuid"
   ws_rrsp: "actual-account-uuid"                # Off-budget tracking account (holdings)
   ws_tfsa: "actual-account-uuid"                # Off-budget tracking account (holdings)
+  ws_fhsa: "actual-account-uuid"                # Off-budget tracking account (holdings)
+  ws_non_registered: "actual-account-uuid"      # Off-budget tracking account (holdings)
   splitwise_receivable: "actual-account-uuid"   # Off-budget tracking account
   splitwise_payable: "actual-account-uuid"      # Off-budget tracking account

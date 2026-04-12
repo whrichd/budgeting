@@ -15,7 +15,10 @@ export async function connect() {
     password: config.actual.password,
   });
 
-  await api.downloadBudget(config.actual.budgetId);
+  const dlOpts = config.actual.encryptionPassword
+    ? { password: config.actual.encryptionPassword }
+    : {};
+  await api.downloadBudget(config.actual.budgetId, dlOpts);
 }
 
 export async function importTransactions(accountId, transactions) {

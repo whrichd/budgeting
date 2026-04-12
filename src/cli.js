@@ -155,6 +155,8 @@ program
 const HOLDINGS_ACCOUNT_MAP = {
   'RRSP': 'ws_rrsp',
   'TFSA': 'ws_tfsa',
+  'FHSA': 'ws_fhsa',
+  'Non-registered': 'ws_non_registered',
 };
 
 program
