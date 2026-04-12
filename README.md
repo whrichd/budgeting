@@ -25,18 +25,7 @@ Personal budgeting system built on [Actual Budget](https://actualbudget.org/) (s
 The config needs Actual Budget account UUIDs (not names). To find them:
 
 ```bash
-node --input-type=module -e "
-import api from '@actual-app/api';
-import { mkdirSync } from 'fs';
-import { loadConfig } from './src/config.js';
-const config = loadConfig();
-mkdirSync('./data/api-cache', { recursive: true });
-await api.init({ dataDir: './data/api-cache', serverURL: config.actual.serverURL, password: config.actual.password });
-await api.downloadBudget(config.actual.budgetId);
-const accounts = await api.getAccounts();
-for (const a of accounts) console.log(a.id + '  ' + a.name + '  (' + (a.offbudget ? 'tracking' : 'on-budget') + ')');
-await api.shutdown();
-"
+node src/cli.js balances
 ```
 
 This prints all accounts with their UUIDs. Copy the UUIDs into `config/accounts.yml`.
@@ -81,6 +70,38 @@ Drop your CSV files into `imports/` — the parser auto-detects EQ Bank vs Wealt
 | EQ Bank | `Transfer date, Description, Amount, Balance` | Header: "Transfer date" |
 | Wealthsimple Chequing | `date, transaction, description, amount, balance, currency` | Header: "transaction" + "balance" |
 | Wealthsimple Credit Card | `transaction_date, post_date, type, details, amount, currency` | Header: "post_date" + "type" |
+
+## Investment Holdings / Net Worth Tracking
+
+Track Wealthsimple investment account balances (RRSP, TFSA, FHSA, Non-registered) in Actual Budget using holdings report CSVs. USD positions are converted to CAD using the live Bank of Canada exchange rate.
+
+### Setup
+
+1. Create **tracking accounts** in Actual Budget for each investment account (off-budget)
+2. Find their UUIDs: `node src/cli.js balances`
+3. Add to `config/accounts.yml`:
+   ```yaml
+   accounts:
+     ws_rrsp: "uuid"
+     ws_tfsa: "uuid"
+     ws_fhsa: "uuid"
+     ws_non_registered: "uuid"
+   ```
+
+### Usage
+
+1. Download the holdings report CSV from Wealthsimple (Accounts → Download → Holdings report)
+2. Drop it in `imports/`
+3. Run:
+   ```bash
+   # Preview
+   node src/cli.js holdings --dry-run ./imports/holdings-report-2026-04-10.csv
+
+   # Update balances
+   node src/cli.js holdings ./imports/holdings-report-2026-04-10.csv
+   ```
+
+Repeat monthly to track net worth over time. Each run creates a balance adjustment transaction per account to match the current market value.
 
 ## Splitwise Integration
 
@@ -242,6 +263,7 @@ budgeting/
 │   ├── cli.js                  # CLI entry point
 │   ├── config.js               # Loads config/accounts.yml
 │   ├── actual.js               # Actual Budget API wrapper
+│   ├── holdings.js             # Wealthsimple holdings report parser
 │   ├── parsers/
 │   │   ├── index.js            # Auto-detection logic
 │   │   ├── eqbank.js           # EQ Bank CSV parser
