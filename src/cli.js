@@ -17,7 +17,7 @@ program
 
 program
   .command('import')
-  .description('Import CSV files into Actual Budget (EQ Bank, Wealthsimple)')
+  .description('Import CSV/OFX files into Actual Budget')
   .argument('<path>', 'File or directory to import')
   .option('--account <key>', 'Explicit account key (from accounts.yml)')
   .option('--dry-run', 'Parse and show results without importing')
@@ -28,14 +28,14 @@ program
     const stat = statSync(absPath);
     if (stat.isDirectory()) {
       files = readdirSync(absPath)
-        .filter(f => /\.csv$/i.test(f))
+        .filter(f => /\.(csv|ofx|qfx)$/i.test(f))
         .map(f => resolve(absPath, f));
     } else {
       files = [absPath];
     }
 
     if (files.length === 0) {
-      console.error('No CSV files found at', inputPath);
+      console.error('No CSV/OFX files found at', inputPath);
       process.exit(1);
     }
 
@@ -56,7 +56,7 @@ program
       const detected = detectParser(content, filename, opts.account);
 
       if (!detected) {
-        console.log(`  [SKIP] ${filename} — not a supported CSV format (use Actual Budget UI for OFX imports)`);
+        console.log(`  [SKIP] ${filename} — not a supported format`);
         continue;
       }
 
@@ -70,7 +70,7 @@ program
 
       console.log(`  Parsing ${filename} → ${parserName} → account: ${account}`);
 
-      const { transactions, errors } = parser.parseFile(content, filePath);
+      const { transactions, errors } = await parser.parseFile(content, filePath);
       fileResults.push({ filename, account, transactions, errors, parserName });
     }
 

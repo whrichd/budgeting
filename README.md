@@ -34,42 +34,48 @@ You need at minimum the `actual.serverURL`, `actual.password`, and `actual.budge
 
 ## Importing Transactions
 
-### TD, CIBC, Amex — OFX via Actual Budget UI
-
-These banks export OFX files, which Actual Budget imports natively:
-
-1. Download OFX file from your bank's website
-2. In Actual Budget, open the account > click Import > select the OFX file
-
-Deduplication is handled automatically.
-
-### EQ Bank, Wealthsimple — CSV via CLI
-
-These banks don't support OFX, so use the CLI:
+All banks are imported through the CLI. Drop files into `imports/` and run:
 
 ```bash
-# Import all CSVs in the imports folder
+# Import everything (CSV + OFX)
 node src/cli.js import ./imports/
 
 # Preview without importing
 node src/cli.js import --dry-run ./imports/
 
 # Import a specific file
-node src/cli.js import ./imports/eqbank.csv
+node src/cli.js import ./imports/td_chequing-2026-03.ofx
 
-# Force a specific account
+# Force a specific account (overrides auto-detection)
 node src/cli.js import --account ws_chequing file.csv
 ```
 
-Drop your CSV files into `imports/` — the parser auto-detects EQ Bank vs Wealthsimple from the file headers. Safe to re-import the same file (duplicates are skipped).
+Safe to re-import the same file — duplicates are skipped automatically.
 
-### Supported CSV formats
+### File naming
 
-| Bank | Format | Auto-detected by |
-|------|--------|-----------------|
-| EQ Bank | `Transfer date, Description, Amount, Balance` | Header: "Transfer date" |
-| Wealthsimple Chequing | `date, transaction, description, amount, balance, currency` | Header: "transaction" + "balance" |
-| Wealthsimple Credit Card | `transaction_date, post_date, type, details, amount, currency` | Header: "post_date" + "type" |
+The CLI resolves the target account in order: `--account` flag → CSV header detection → **filename match**.
+
+CSV files (EQ Bank, Wealthsimple) are auto-detected by their headers — no special naming needed. OFX files need the **account key** (from `config/accounts.yml`) somewhere in the filename:
+
+| Bank | Account Key | Example Filename |
+|------|-------------|-----------------|
+| TD Chequing | `td_chequing` | `td_chequing-2026-03.ofx` |
+| TD Visa | `td_visa` | `td_visa-2026-03.ofx` |
+| CIBC Chequing | `cibc_chequing` | `cibc_chequing-march.ofx` |
+| Amex | `amex` | `amex-2026-03.ofx` |
+| EQ Savings | `eq_savings` | *(auto-detected by CSV header)* |
+| WS Chequing | `ws_chequing` | *(auto-detected by CSV header)* |
+| WS Credit | `ws_credit` | *(auto-detected by CSV header)* |
+
+### Supported formats
+
+| Bank | Format | Detection |
+|------|--------|-----------|
+| TD / CIBC / Amex | OFX | File contains `OFXHEADER` or has `.ofx`/`.qfx` extension |
+| EQ Bank | CSV: `Transfer date, Description, Amount, Balance` | Header: "Transfer date" |
+| Wealthsimple Chequing | CSV: `date, transaction, description, amount, balance, currency` | Header: "transaction" + "balance" |
+| Wealthsimple Credit Card | CSV: `transaction_date, post_date, type, details, amount, currency` | Header: "post_date" + "type" |
 
 ## Investment Holdings / Net Worth Tracking
 
@@ -265,7 +271,8 @@ budgeting/
 │   ├── actual.js               # Actual Budget API wrapper
 │   ├── holdings.js             # Wealthsimple holdings report parser
 │   ├── parsers/
-│   │   ├── index.js            # Auto-detection logic
+│   │   ├── index.js            # Auto-detection + filename-based account resolution
+│   │   ├── ofx.js              # OFX parser (TD, CIBC, Amex)
 │   │   ├── eqbank.js           # EQ Bank CSV parser
 │   │   ├── wealthsimple.js     # Wealthsimple CSV parser (chequing + credit card)
 │   │   └── utils.js            # Shared utilities (imported_id generation)

@@ -1,6 +1,6 @@
 # Budgeting Tools
 
-Personal budgeting system built on Actual Budget (self-hosted) with CSV import for banks that don't support OFX.
+Personal budgeting system built on Actual Budget (self-hosted) with CSV/OFX import via CLI.
 
 ## Architecture
 
@@ -13,9 +13,9 @@ Personal budgeting system built on Actual Budget (self-hosted) with CSV import f
 
 | Bank | Import Method | Tool |
 |------|--------------|------|
-| TD Canada Trust | OFX file | Actual Budget UI (built-in) |
-| CIBC | OFX file | Actual Budget UI (built-in) |
-| Amex Canada | OFX file | Actual Budget UI (built-in) |
+| TD Canada Trust | OFX file | CLI: `node src/cli.js import --account td_chequing` |
+| CIBC | OFX file | CLI: `node src/cli.js import --account cibc_chequing` |
+| Amex Canada | OFX file | CLI: `node src/cli.js import --account amex` |
 | EQ Bank | CSV file | CLI: `node src/cli.js import` |
 | Wealthsimple | CSV file (two formats: chequing + credit card) | CLI: `node src/cli.js import` |
 | Wealthsimple | Holdings report CSV | CLI: `node src/cli.js holdings` |
@@ -24,9 +24,10 @@ Personal budgeting system built on Actual Budget (self-hosted) with CSV import f
 
 ```bash
 ./start.sh                                            # Start Actual Budget (pinned to v26.4.0)
-node src/cli.js import ./imports/                     # Import EQ Bank + WS CSVs
+node src/cli.js import ./imports/                     # Import all CSVs + OFX files
 node src/cli.js import --dry-run ./imports/           # Parse without importing
-node src/cli.js import --account ws_chequing file.csv # Explicit account
+node src/cli.js import --account ws_chequing file.csv # Explicit account (CSV)
+node src/cli.js import --account td_chequing file.ofx # Explicit account (OFX)
 node src/cli.js balances                              # Show balances
 node src/cli.js holdings ./imports/holdings-report-*.csv      # Update investment balances
 node src/cli.js holdings --dry-run ./imports/holdings-*.csv   # Preview without updating
@@ -53,7 +54,7 @@ Repeat monthly to track net worth over time. Fetches live USD/CAD rate from Bank
 ## Key Conventions
 
 - Amounts are integers in cents (Actual Budget format). Negative = outflow.
-- `imported_id` uses SHA-256 hash for deduplication. Safe to re-import same file.
+- `imported_id` uses SHA-256 hash for CSV deduplication, or bank FITID for OFX. Safe to re-import same file.
 - Config lives in `config/accounts.yml` (gitignored — contains server password and account UUIDs).
 - See `config/accounts.example.yml` for the template.
 - `@actual-app/api` version must match the Actual Budget server version (both v26.x).
@@ -73,7 +74,7 @@ If you see `out-of-sync-migrations` errors, the versions are mismatched.
 
 ## Phases
 
-- **Phase 1** (current): OFX import (TD/CIBC/Amex via UI) + CSV import (EQ Bank/Wealthsimple via CLI)
+- **Phase 1** (current): All imports via CLI — OFX (TD/CIBC/Amex) + CSV (EQ Bank/Wealthsimple)
 - **Phase 2**: Splitwise API integration (shared expense reconciliation)
 - **Phase 2**: Triangle Bank, Simplii parsers (when samples available)
 - **Phase 3**: Mobile access via Tailscale + PWA
