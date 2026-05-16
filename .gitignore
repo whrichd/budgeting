@@ -17,3 +17,4 @@ config/splitwise-state.json
 # IDE
 .vscode/
 .idea/
+*.code-workspace

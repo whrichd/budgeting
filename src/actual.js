@@ -35,6 +35,9 @@ export async function getAccountBalance(accountId) {
 }
 
 export async function disconnect() {
-  await api.sync();
-  await api.shutdown();
+  try {
+    await api.sync();
+  } finally {
+    await api.shutdown();
+  }
 }

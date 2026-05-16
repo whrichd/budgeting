@@ -4,7 +4,7 @@ import api from '@actual-app/api';
  * Search for a bank transaction matching a Splitwise expense.
  * Looks for transactions with the same absolute amount within ±1 day.
  *
- * @param {number} amountCents - the total amount paid (positive = cents)
+ * @param {number} amountCents - positive for outflows, negative for inflows
  * @param {string} date - YYYY-MM-DD
  * @param {string[]} accountIds - Actual Budget account IDs to search
  * @returns {{ transaction: object, confidence: string } | null}
@@ -20,8 +20,8 @@ export async function findBankMatch(amountCents, date, accountIds) {
   const startDate = before.toISOString().split('T')[0];
   const endDate = after.toISOString().split('T')[0];
 
-  // The amount in Actual is negative for outflows
-  const targetAmount = -amountCents;
+  // Actual stores outflows as negative and inflows as positive.
+  const targetAmount = amountCents > 0 ? -amountCents : Math.abs(amountCents);
 
   for (const accountId of accountIds) {
     const transactions = await api.getTransactions(accountId, startDate, endDate);

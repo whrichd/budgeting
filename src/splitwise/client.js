@@ -93,6 +93,9 @@ export function parseExpense(expense, currentUserId) {
 
   const paidCents = Math.round(parseFloat(myUser.paid_share) * 100);
   const owedCents = Math.round(parseFloat(myUser.owed_share) * 100);
+  const settlementCents = isPayment
+    ? Math.max(Math.abs(paidCents), Math.abs(owedCents), Math.abs(totalCents))
+    : 0;
 
   // Determine who paid
   const youPaid = paidCents > 0;
@@ -106,6 +109,7 @@ export function parseExpense(expense, currentUserId) {
     totalCents,
     yourShareCents,
     othersShareCents,
+    settlementCents,
     youPaid,
     paidCents,
     isPayment, // settlement

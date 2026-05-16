@@ -1,9 +1,34 @@
 import api from '@actual-app/api';
 import { getCurrentUser, getExpenses, parseExpense } from './client.js';
 import { findBankMatch } from './matcher.js';
-import { isApplied, markApplied, getDefaultSinceDate } from './state.js';
-import { loadConfig, getAccountId } from '../config.js';
+import { isApplied, getDefaultSinceDate } from './state.js';
+import { getAccountId } from '../config.js';
 import { createInterface } from 'readline';
+
+async function getTransferPayeeId(accountId) {
+  const payees = await api.getPayees();
+  const payee = payees.find(p => p.transfer_acct === accountId);
+
+  if (!payee) {
+    throw new Error(`No transfer payee found for account ${accountId}`);
+  }
+
+  return payee.id;
+}
+
+function buildSplitChild(parent, fields) {
+  return {
+    account: parent.account,
+    date: parent.date,
+    payee: parent.payee ?? null,
+    category: parent.category ?? null,
+    cleared: parent.cleared ?? true,
+    reconciled: parent.reconciled ?? false,
+    is_child: true,
+    parent_id: parent.id,
+    ...fields,
+  };
+}
 
 /**
  * Build proposed actions for Splitwise expenses.
@@ -38,14 +63,15 @@ export async function buildProposals(since) {
 
     if (expense.isPayment) {
       // Settlement payment
-      const match = await findBankMatch(expense.paidCents, expense.date, onBudgetIds);
+      const matchAmount = expense.youPaid ? expense.settlementCents : -expense.settlementCents;
+      const match = await findBankMatch(matchAmount, expense.date, onBudgetIds);
       proposal = {
         type: 'settlement',
         expense,
         bankMatch: match,
         description: expense.youPaid
-          ? `Settlement: you paid $${(expense.paidCents / 100).toFixed(2)}`
-          : `Settlement: you received $${(expense.paidCents / 100).toFixed(2)}`,
+          ? `Settlement: you paid $${(expense.settlementCents / 100).toFixed(2)}`
+          : `Settlement: you received $${(expense.settlementCents / 100).toFixed(2)}`,
       };
     } else if (expense.youPaid) {
       // You paid — need to split the bank transaction
@@ -131,7 +157,11 @@ export function displayProposals(proposals) {
 export async function applyProposals(proposals) {
   const receivableId = getAccountId('splitwise_receivable');
   const payableId = getAccountId('splitwise_payable');
+  const receivablePayeeId = await getTransferPayeeId(receivableId);
+  const payablePayeeId = await getTransferPayeeId(payableId);
   const appliedIds = [];
+  const skipped = [];
+  const failed = [];
 
   for (const p of proposals) {
     const e = p.expense;
@@ -141,17 +171,20 @@ export async function applyProposals(proposals) {
         // Convert bank transaction to split transaction
         const txn = p.bankMatch.transaction;
         await api.updateTransaction(txn.id, {
+          is_parent: true,
+          category: null,
           notes: `[Splitwise] ${e.description}`,
           subtransactions: [
-            {
+            buildSplitChild(txn, {
               amount: -e.yourShareCents,
               notes: 'Your share',
-            },
-            {
+            }),
+            buildSplitChild(txn, {
               amount: -e.othersShareCents,
-              account: receivableId,
+              payee: receivablePayeeId,
+              category: null,
               notes: `Splitwise receivable`,
-            },
+            }),
           ],
         });
         console.log(`  ✓ Split: ${e.description} → $${(e.yourShareCents / 100).toFixed(2)} expense + $${(e.othersShareCents / 100).toFixed(2)} receivable`);
@@ -159,6 +192,7 @@ export async function applyProposals(proposals) {
       } else if (p.type === 'you_paid' && !p.bankMatch) {
         // No bank match — just log it, user needs to handle manually
         console.log(`  ⚠ No bank match for "${e.description}" ($${(e.paidCents / 100).toFixed(2)}) — skipping, handle manually`);
+        skipped.push(e);
         continue; // Don't mark as applied
 
       } else if (p.type === 'they_paid') {
@@ -177,20 +211,21 @@ export async function applyProposals(proposals) {
           // You sent money — mark as transfer to payable
           const txn = p.bankMatch.transaction;
           await api.updateTransaction(txn.id, {
-            account: payableId,
+            payee: payablePayeeId,
             notes: `[Splitwise] Settlement payment`,
           });
-          console.log(`  ✓ Settlement: marked $${(e.paidCents / 100).toFixed(2)} as payable offset`);
+          console.log(`  ✓ Settlement: marked $${(e.settlementCents / 100).toFixed(2)} as payable offset`);
         } else if (p.bankMatch && !e.youPaid) {
           // You received money — mark as transfer from receivable
           const txn = p.bankMatch.transaction;
           await api.updateTransaction(txn.id, {
-            account: receivableId,
+            payee: receivablePayeeId,
             notes: `[Splitwise] Settlement received`,
           });
-          console.log(`  ✓ Settlement: marked $${(e.paidCents / 100).toFixed(2)} as receivable offset`);
+          console.log(`  ✓ Settlement: marked $${(e.settlementCents / 100).toFixed(2)} as receivable offset`);
         } else {
           console.log(`  ⚠ No bank match for settlement "${e.description}" — skipping`);
+          skipped.push(e);
           continue;
         }
       }
@@ -198,14 +233,11 @@ export async function applyProposals(proposals) {
       appliedIds.push(e.id);
     } catch (err) {
       console.error(`  ✗ Failed: ${e.description} — ${err.message}`);
+      failed.push({ expense: e, error: err });
     }
   }
 
-  if (appliedIds.length > 0) {
-    markApplied(appliedIds);
-  }
-
-  return appliedIds.length;
+  return { appliedIds, skipped, failed };
 }
 
 /**

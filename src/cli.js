@@ -313,6 +313,7 @@ sw.command('sync')
   .option('--since <date>', 'Start date (YYYY-MM-DD)')
   .action(async (opts) => {
     const { buildProposals, displayProposals, applyProposals, confirm } = await import('./splitwise/sync.js');
+    const { markApplied } = await import('./splitwise/state.js');
 
     await connect();
 
@@ -332,10 +333,25 @@ sw.command('sync')
     }
 
     console.log('\nApplying changes...');
-    const applied = await applyProposals(proposals);
-    console.log(`\n${applied} changes applied.`);
+    const { appliedIds, skipped, failed } = await applyProposals(proposals);
+    if (skipped.length > 0) {
+      console.log(`\n${skipped.length} item(s) were skipped and left pending because no bank match was found:`);
+      for (const e of skipped) {
+        const amount = e.isPayment ? e.settlementCents : e.paidCents;
+        console.log(`  - ${e.date} ${e.description} $${(amount / 100).toFixed(2)} (Splitwise id ${e.id})`);
+      }
+    }
+    if (failed.length > 0) {
+      console.log(`\n${failed.length} item(s) failed and were left pending:`);
+      for (const { expense, error } of failed) {
+        console.log(`  - ${expense.date} ${expense.description}: ${error.message}`);
+      }
+    }
+    console.log(`\n${appliedIds.length} changes applied locally. Syncing to Actual...`);
 
     await disconnect();
+    markApplied(appliedIds);
+    console.log(`${appliedIds.length} changes synced and marked applied.`);
   });
 
 program.parse();
