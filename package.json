@@ -6,14 +6,19 @@
   "bin": {
     "budget": "./src/cli.js"
   },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "import": "node src/cli.js import",
-    "balances": "node src/cli.js balances"
+    "balances": "node src/cli.js balances",
+    "test": "node --test"
   },
   "dependencies": {
     "@actual-app/api": "^26.4.0",
     "commander": "^13.1.0",
     "csv-parse": "^5.6.0",
+    "pdfjs-dist": "4.10.38",
     "xml2js": "^0.6.2",
     "yaml": "^2.7.0"
   }

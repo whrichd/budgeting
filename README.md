@@ -4,7 +4,7 @@ Personal budgeting system built on [Actual Budget](https://actualbudget.org/) (s
 
 ## Setup
 
-1. Install [Docker](https://docs.docker.com/get-docker/) and [Node.js](https://nodejs.org/) (v18+)
+1. Install [Docker](https://docs.docker.com/get-docker/) and [Node.js](https://nodejs.org/) (v20+)
 2. Clone this repo and install dependencies:
    ```bash
    npm install
@@ -76,6 +76,41 @@ CSV files (EQ Bank, Wealthsimple) are auto-detected by their headers — no spec
 | EQ Bank | CSV: `Transfer date, Description, Amount, Balance` | Header: "Transfer date" |
 | Wealthsimple Chequing | CSV: `date, transaction, description, amount, balance, currency` | Header: "transaction" + "balance" |
 | Wealthsimple Credit Card | CSV: `transaction_date, post_date, type, details, amount, currency` | Header: "post_date" + "type" |
+
+### Wealthsimple Activity PDFs
+
+Wealthsimple desktop PDF exports can be converted into review CSVs for chequing and credit card activity. The converter reads PDF text/layout data only; phone screenshots and image-only PDFs are not supported because they require OCR.
+
+Create a chequing PDF:
+
+1. Open Wealthsimple in a desktop browser
+2. Go to Activity
+3. Filter Account to Chequing
+4. Set the desired timeframe
+5. In Safari/macOS, choose File -> Export as PDF from the menu bar, or use your browser's print/save PDF equivalent
+6. Save the PDF into `imports/`
+
+Create a credit card PDF:
+
+1. Open Wealthsimple in a desktop browser
+2. Open the Wealthsimple credit card page, or Activity filtered to Wealthsimple credit card
+3. Set the desired timeframe if the page offers one
+4. Export/save the page as a PDF
+5. Save the PDF into `imports/`
+
+Convert the PDF to a review CSV, inspect it, then import separately:
+
+```bash
+# Chequing
+node src/cli.js ws-pdf ./imports/ws-chequing.pdf --account ws_chequing --out ./imports/ws_chequing-review.csv
+node src/cli.js import --dry-run ./imports/ws_chequing-review.csv
+
+# Credit card
+node src/cli.js ws-pdf ./imports/ws-credit.pdf --account ws_credit --out ./imports/ws_credit-review.csv
+node src/cli.js import --dry-run ./imports/ws_credit-review.csv
+```
+
+The PDF converter does not connect to Actual Budget and does not import anything. It writes only the CSV columns expected by the existing Wealthsimple import parser. If rows are skipped, the CLI prints counts and up to five privacy-safe examples with reason and page position. Use `--force` to overwrite an existing review CSV, and `--report ./imports/ws-report.json` for a privacy-minimal diagnostic summary.
 
 ## Investment Holdings / Net Worth Tracking
 

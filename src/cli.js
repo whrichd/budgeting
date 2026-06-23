@@ -134,6 +134,51 @@ program
   });
 
 program
+  .command('ws-pdf')
+  .description('Convert a Wealthsimple desktop PDF export into a review CSV')
+  .argument('<pdf>', 'Wealthsimple desktop PDF export')
+  .requiredOption('--account <key>', 'Target account: ws_chequing or ws_credit')
+  .requiredOption('--out <csv>', 'Review CSV output path')
+  .option('--force', 'Overwrite the output CSV if it already exists')
+  .option('--report <json>', 'Optional privacy-minimal diagnostic report path')
+  .action(async (pdfPath, opts) => {
+    const { convertWealthsimplePdf, WealthsimplePdfError } = await import('./wealthsimplePdf.js');
+
+    try {
+      const summary = await convertWealthsimplePdf({
+        inputPath: pdfPath,
+        account: opts.account,
+        outPath: opts.out,
+        force: Boolean(opts.force),
+        reportPath: opts.report,
+      });
+
+      console.log(`Converted ${summary.exportedRows} row(s) for ${summary.account}.`);
+      console.log(`Date range: ${summary.dateRange.from || 'unknown'} to ${summary.dateRange.to || 'unknown'}`);
+      console.log(`Skipped rows: ${summary.skippedRows}`);
+      for (const [reason, count] of Object.entries(summary.skippedByReason)) {
+        console.log(`  ${reason}: ${count}`);
+      }
+      if (summary.skippedExamples.length > 0) {
+        console.log('Skip examples:');
+        for (const example of summary.skippedExamples) {
+          const location = example.y === null ? `page ${example.page}` : `page ${example.page}, y ${example.y}`;
+          console.log(`  ${example.reason} (${location})`);
+        }
+      }
+      console.log(`Review CSV: ${summary.outputFile}`);
+      if (opts.report) console.log(`Report: ${resolve(opts.report)}`);
+      console.log('\nNext: inspect the CSV, then run import --dry-run before importing.');
+    } catch (err) {
+      if (err instanceof WealthsimplePdfError) {
+        console.error(`ws-pdf failed: ${err.message}`);
+        process.exit(1);
+      }
+      throw err;
+    }
+  });
+
+program
   .command('balances')
   .description('Show account balances from Actual Budget')
   .action(async () => {
