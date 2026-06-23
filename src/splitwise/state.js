@@ -5,9 +5,17 @@ const STATE_PATH = resolve(process.cwd(), 'config', 'splitwise-state.json');
 
 function readState() {
   try {
-    return JSON.parse(readFileSync(STATE_PATH, 'utf-8'));
-  } catch {
-    return { appliedExpenseIds: [] };
+    const state = JSON.parse(readFileSync(STATE_PATH, 'utf-8'));
+    return {
+      appliedExpenseIds: state.appliedExpenseIds || [],
+      records: state.records || [],
+    };
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      return { appliedExpenseIds: [], records: [] };
+    }
+
+    throw new Error(`Failed to read ${STATE_PATH}: ${err.message}`);
   }
 }
 
@@ -20,17 +28,49 @@ function writeState(state) {
  */
 export function isApplied(expenseId) {
   const state = readState();
-  return state.appliedExpenseIds.includes(expenseId);
+  if (state.appliedExpenseIds.includes(expenseId)) return true;
+
+  const record = state.records.find(r => r.splitwiseId === expenseId);
+  return ['matched', 'placeholder', 'manual'].includes(record?.status);
 }
 
 /**
- * Mark Splitwise expense IDs as applied.
+ * Mark Splitwise expense IDs as applied. Kept for backward compatibility.
  */
 export function markApplied(expenseIds) {
   const state = readState();
   const set = new Set(state.appliedExpenseIds);
   for (const id of expenseIds) set.add(id);
   state.appliedExpenseIds = [...set];
+  writeState(state);
+}
+
+export function getRecord(expenseId) {
+  const state = readState();
+  return state.records.find(r => r.splitwiseId === expenseId) || null;
+}
+
+export function getAppliedRecord(expenseId) {
+  const record = getRecord(expenseId);
+  if (['matched', 'placeholder', 'manual'].includes(record?.status)) return record;
+  return null;
+}
+
+export function upsertRecords(records) {
+  if (records.length === 0) return;
+
+  const state = readState();
+  const byId = new Map(state.records.map(r => [r.splitwiseId, r]));
+
+  for (const record of records) {
+    byId.set(record.splitwiseId, {
+      ...byId.get(record.splitwiseId),
+      ...record,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  state.records = [...byId.values()];
   writeState(state);
 }
 

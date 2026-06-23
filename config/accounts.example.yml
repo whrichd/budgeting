@@ -21,5 +21,7 @@ accounts:
   ws_tfsa: "actual-account-uuid"                # Off-budget tracking account (holdings)
   ws_fhsa: "actual-account-uuid"                # Off-budget tracking account (holdings)
   ws_non_registered: "actual-account-uuid"      # Off-budget tracking account (holdings)
-  splitwise_receivable: "actual-account-uuid"   # Off-budget tracking account
-  splitwise_payable: "actual-account-uuid"      # Off-budget tracking account
+  splitwise_clearing: "actual-account-uuid"     # On-budget clearing account for Splitwise
+
+categories:
+  splitwise_review: "actual-category-uuid"      # Temporary category for Splitwise expenses to recategorize

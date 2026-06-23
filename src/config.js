@@ -46,6 +46,17 @@ export function getAccountId(accountKey) {
   return id;
 }
 
+export function getCategoryId(categoryKey) {
+  const config = loadConfig();
+  const id = config.categories?.[categoryKey];
+  if (!id || id === 'actual-category-uuid') {
+    console.error(`Category "${categoryKey}" not configured in accounts.yml.`);
+    console.error(`Available categories: ${Object.keys(config.categories || {}).join(', ') || '(none)'}`);
+    process.exit(1);
+  }
+  return id;
+}
+
 export function getAvailableAccounts() {
   const config = loadConfig();
   return Object.keys(config.accounts);

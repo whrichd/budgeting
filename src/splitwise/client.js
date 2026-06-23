@@ -65,9 +65,7 @@ export async function getExpenses(since, limit = 50) {
     const expenses = data.expenses || [];
     if (expenses.length === 0) break;
 
-    // Filter out deleted expenses
-    const active = expenses.filter(e => !e.deleted_at);
-    allExpenses.push(...active);
+    allExpenses.push(...expenses);
 
     if (expenses.length < limit) break;
     offset += limit;
@@ -113,6 +111,9 @@ export function parseExpense(expense, currentUserId) {
     youPaid,
     paidCents,
     isPayment, // settlement
+    currencyCode: expense.currency_code,
+    updatedAt: expense.updated_at,
+    deletedAt: expense.deleted_at,
     groupName: expense.group_id ? `group:${expense.group_id}` : null,
     users: expense.users.map(u => ({
       userId: u.user_id,

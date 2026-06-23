@@ -26,8 +26,16 @@ export async function importTransactions(accountId, transactions) {
   return result;
 }
 
+export async function addTransactions(accountId, transactions, opts = {}) {
+  return await api.addTransactions(accountId, transactions, opts);
+}
+
 export async function getAccounts() {
   return await api.getAccounts();
+}
+
+export async function getCategories() {
+  return await api.getCategories();
 }
 
 export async function getAccountBalance(accountId) {

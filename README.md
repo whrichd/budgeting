@@ -151,14 +151,21 @@ Sync shared expenses from Splitwise into Actual Budget. Handles split transactio
 ### Setup
 
 1. Register an app at https://secure.splitwise.com/apps and get your API key
-2. Create two tracking accounts in Actual Budget: "Splitwise: Receivable" and "Splitwise: Payable" (both off-budget)
-3. Add to `config/accounts.yml`:
+2. Create one on-budget account in Actual Budget: "Splitwise Clearing"
+3. Create or choose a category for temporary review, e.g. "Splitwise"
+4. Find the account/category UUIDs:
+   ```bash
+   node src/cli.js balances
+   node src/cli.js categories
+   ```
+5. Add to `config/accounts.yml`:
    ```yaml
    splitwise:
      apiKey: "your-api-key"
    accounts:
-     splitwise_receivable: "uuid"
-     splitwise_payable: "uuid"
+     splitwise_clearing: "uuid"
+   categories:
+     splitwise_review: "uuid"
    ```
 
 ### Commands
@@ -177,16 +184,26 @@ node src/cli.js splitwise sync
 node src/cli.js splitwise sync --since 2026-01-01
 ```
 
+Run `splitwise sync` from an interactive terminal when you want it to write to Actual. Non-interactive runs only print the proposed actions and exit without applying changes.
+
 ### How sync works
 
 1. Import bank statements first (OFX/CSV)
 2. Run `splitwise sync` — fetches last 60 days of Splitwise expenses
 3. For each expense, it shows what it wants to do:
-   - **You paid**: split the bank transaction into your share + receivable
-   - **They paid**: create a payable entry for your share
-   - **Settlement**: match the e-transfer to payable/receivable
+   - **You paid**: split the bank transaction into your share + transfer to Splitwise Clearing
+   - **They paid**: create a categorized expense in Splitwise Clearing
+   - **Settlement**: match the bank-side settlement transaction and convert it to a transfer to/from Splitwise Clearing
 4. You confirm before any changes are applied
 5. Already-processed expenses are skipped on re-runs
+
+If a bank transaction has not been imported yet, interactive sync can create an uncleared placeholder in the bank/card account you choose. Later statement imports can match that placeholder by account, date, and amount.
+
+Settlement matching ignores transactions that are already Actual transfers. If you already converted a settlement manually, leave that Splitwise item skipped or mark it manually in `config/splitwise-state.json` after verifying it is truly handled.
+
+### Migrating from receivable/payable accounts
+
+Older Splitwise sync runs used separate off-budget receivable/payable accounts. You can leave that history in place and use the new Splitwise Clearing workflow going forward. Legacy applied IDs are still respected, so old items should not import again, but changed or deleted legacy Splitwise expenses do not have enough saved metadata for automatic repair. Review those manually if the old off-budget balances look wrong, then close or adjust the old accounts once you are comfortable with the clearing account balance.
 
 ## Remote Access and Sharing
 

@@ -5,7 +5,7 @@ import { readFileSync, readdirSync, statSync } from 'fs';
 import { resolve, basename, extname } from 'path';
 import { detectParser } from './parsers/index.js';
 import { getAccountId, getAvailableAccounts } from './config.js';
-import { connect, importTransactions, getAccounts, getAccountBalance, disconnect } from './actual.js';
+import { connect, importTransactions, getAccounts, getAccountBalance, getCategories, disconnect } from './actual.js';
 import { isHoldingsReport, parseHoldingsReport } from './holdings.js';
 
 const program = new Command();
@@ -195,6 +195,23 @@ program
     await disconnect();
   });
 
+program
+  .command('categories')
+  .description('Show category IDs from Actual Budget')
+  .action(async () => {
+    await connect();
+    const categories = await getCategories();
+
+    console.log('\nCategories in Actual Budget:\n');
+    for (const category of categories) {
+      const type = category.is_income ? 'income' : 'expense';
+      const hidden = category.hidden ? ' (hidden)' : '';
+      console.log(`  ${category.name.padEnd(35)} ${type.padEnd(8)} ${category.id}${hidden}`);
+    }
+
+    await disconnect();
+  });
+
 // --- Holdings / net worth ---
 
 const HOLDINGS_ACCOUNT_MAP = {
@@ -308,6 +325,7 @@ sw.command('expenses')
     for (const raw of expenses) {
       const e = parseExpense(raw, user.id);
       if (!e) continue;
+      if (e.deletedAt) continue;
 
       const total = `$${(e.totalCents / 100).toFixed(2)}`;
       const share = e.isPayment ? '-' : `$${(e.yourShareCents / 100).toFixed(2)}`;
@@ -356,47 +374,66 @@ sw.command('balances')
 sw.command('sync')
   .description('Sync Splitwise expenses with Actual Budget')
   .option('--since <date>', 'Start date (YYYY-MM-DD)')
+  .option('--no-placeholders', 'Do not create temporary placeholder transactions')
   .action(async (opts) => {
-    const { buildProposals, displayProposals, applyProposals, confirm } = await import('./splitwise/sync.js');
-    const { markApplied } = await import('./splitwise/state.js');
+    const { buildProposals, displayProposals, applyProposals, confirm, loadSplitwiseContext } = await import('./splitwise/sync.js');
+    const { upsertRecords } = await import('./splitwise/state.js');
 
     await connect();
+    let disconnected = false;
 
-    const proposals = await buildProposals(opts.since);
-    displayProposals(proposals);
+    try {
+      const context = await loadSplitwiseContext({ noPlaceholders: opts.placeholders === false });
+      const proposals = await buildProposals(opts.since, context);
+      displayProposals(proposals);
 
-    if (proposals.length === 0) {
+      if (proposals.length === 0) {
+        await disconnect();
+        disconnected = true;
+        return;
+      }
+
+      if (!context.canPrompt) {
+        console.log('Non-interactive run: reporting proposals only; rerun in an interactive terminal to apply changes.');
+        await disconnect();
+        disconnected = true;
+        return;
+      }
+
+      const yes = await confirm(`Apply ${proposals.length} changes? [y/n] `);
+      if (!yes) {
+        console.log('Cancelled.');
+        await disconnect();
+        disconnected = true;
+        return;
+      }
+
+      console.log('\nApplying changes...');
+      const { records, skipped, failed } = await applyProposals(proposals, context);
+      if (skipped.length > 0) {
+        console.log(`\n${skipped.length} item(s) were skipped and left pending:`);
+        for (const { expense: e, reason } of skipped) {
+          const amount = e.isPayment ? e.settlementCents : e.paidCents;
+          console.log(`  - ${e.date} ${e.description} $${(amount / 100).toFixed(2)} (Splitwise id ${e.id}) — ${reason}`);
+        }
+      }
+      if (failed.length > 0) {
+        console.log(`\n${failed.length} item(s) failed and were left pending:`);
+        for (const { expense, error } of failed) {
+          console.log(`  - ${expense.date} ${expense.description}: ${error.message}`);
+        }
+      }
+      console.log(`\n${records.length} changes applied locally. Syncing to Actual...`);
+
       await disconnect();
-      return;
-    }
-
-    const yes = await confirm(`Apply ${proposals.length} changes? [y/n] `);
-    if (!yes) {
-      console.log('Cancelled.');
-      await disconnect();
-      return;
-    }
-
-    console.log('\nApplying changes...');
-    const { appliedIds, skipped, failed } = await applyProposals(proposals);
-    if (skipped.length > 0) {
-      console.log(`\n${skipped.length} item(s) were skipped and left pending because no bank match was found:`);
-      for (const e of skipped) {
-        const amount = e.isPayment ? e.settlementCents : e.paidCents;
-        console.log(`  - ${e.date} ${e.description} $${(amount / 100).toFixed(2)} (Splitwise id ${e.id})`);
+      disconnected = true;
+      upsertRecords(records);
+      console.log(`${records.length} changes synced and recorded.`);
+    } finally {
+      if (!disconnected) {
+        await disconnect();
       }
     }
-    if (failed.length > 0) {
-      console.log(`\n${failed.length} item(s) failed and were left pending:`);
-      for (const { expense, error } of failed) {
-        console.log(`  - ${expense.date} ${expense.description}: ${error.message}`);
-      }
-    }
-    console.log(`\n${appliedIds.length} changes applied locally. Syncing to Actual...`);
-
-    await disconnect();
-    markApplied(appliedIds);
-    console.log(`${appliedIds.length} changes synced and marked applied.`);
   });
 
 program.parse();
