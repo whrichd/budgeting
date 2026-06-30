@@ -382,10 +382,7 @@ function validateShape(rows, account, lines, candidates) {
   if (account === 'ws_credit' && candidates.some(looksLikeChequingActivityCandidate)) {
     reasons.push('looks-like-mixed-chequing-activity');
   }
-  if (
-    account === 'ws_chequing' &&
-    lines.some(line => line.text === 'Wealthsimple credit card' && line.x >= 120 && line.x <= 220 && line.y > 1700)
-  ) {
+  if (account === 'ws_chequing' && looksLikeCreditCardAccountPage(lines)) {
     reasons.push('looks-like-credit-card-page');
   }
   if (account === 'ws_chequing' && lines.some(line => /Credit card .* Wealthsimple credit card/.test(line.text))) {
@@ -400,6 +397,16 @@ function looksLikeChequingActivityCandidate(candidate) {
   const detail = candidate.detailLine.text;
   if (title === 'Credit card payment') return false;
   return /\bChequing\b/.test(detail) && !/Credit card|Wealthsimple credit card/.test(detail);
+}
+
+function looksLikeCreditCardAccountPage(lines) {
+  const texts = new Set(lines.map(line => line.text));
+  return (
+    texts.has('Total balance') &&
+    texts.has('Available credit') &&
+    texts.has('Cash back') &&
+    texts.has('Recent activity')
+  );
 }
 
 function skip(candidate, reason) {

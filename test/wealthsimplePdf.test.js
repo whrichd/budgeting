@@ -68,6 +68,49 @@ test('uses date headers from the same PDF page as the transaction row', () => {
   assert.equal(rows[1].date, '2026-06-01');
 });
 
+test('accepts chequing credit card payment rows', () => {
+  const lines = [
+    line('Activity', 96, 1200),
+    line('June 5, 2026', 96, 1000),
+    line('Wealthsimple credit card', 156, 911),
+    line('Credit card payment Chequing', 156, 889),
+    line('− $250.00 CAD', 752, 900),
+  ];
+
+  const { rows, skipped } = parseWealthsimplePdfLines(lines, 'ws_chequing');
+
+  assert.equal(skipped.length, 0);
+  assert.deepEqual(rows, [{
+    date: '2026-06-05',
+    transaction: 'Credit card payment',
+    description: 'Wealthsimple credit card',
+    amount: '-250.00',
+    balance: '',
+    currency: 'CAD',
+  }]);
+});
+
+test('rejects credit card account page when exporting chequing rows', () => {
+  const lines = [
+    line('Total balance', 96, 1200),
+    line('Available credit', 96, 1150),
+    line('Cash back', 650, 1150),
+    line('Recent activity', 96, 1100),
+    line('May 15, 2026', 96, 1000),
+    line('Wealthsimple', 156, 911),
+    line('Interest charge Credit card • Wealthsimple credit card', 156, 889),
+    line('− $17.83 CAD', 777, 900),
+  ];
+
+  assert.throws(
+    () => parseWealthsimplePdfLines(lines, 'ws_chequing'),
+    err =>
+      err instanceof WealthsimplePdfError &&
+      err.code === 'shape-mismatch' &&
+      err.message.includes('looks-like-credit-card-page')
+  );
+});
+
 test('parses credit rows and normalizes amounts for the existing credit parser', async () => {
   const lines = [
     line('Wealthsimple credit card', 144, 1100),
