@@ -1,0 +1,24 @@
+test/wealthsimplePdf.test.js
+  s_319bc92e5081a8::t_fb4507083214d5 112-160,376,379
+  s_319bc92e5081a8::t_a9025b5785dd9d 71-89
+src/wealthsimplePdf.js
+  s_319bc92e5081a8::t_bae5f238ad4456 8,40,82-83,101,105,111,233,237,243,247-248,271,276-277,285,350,367,370-379,384-406
+  s_319bc92e5081a8::t_1f1df388a5031f 262-266
+  s_319bc92e5081a8::t_ab2e0cb1b7a37e 407
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a9066a8905e6d20ccf32b7dd6f91161047b2f719",
+  "prompts": {},
+  "sessions": {
+    "s_319bc92e5081a8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019e34d4-4edc-76c3-9556-30b155b89e32",
+        "model": "gpt-5.5"
+      },
+      "human_author": "whrichd <trabeitwrq@gmail.com>"
+    }
+  }
+}
