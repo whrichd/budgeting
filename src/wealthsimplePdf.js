@@ -5,7 +5,7 @@ import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 const MAX_PDF_BYTES = 25 * 1024 * 1024;
 const MAX_PAGES = 20;
 const EXTRACTION_TIMEOUT_MS = 15_000;
-const MAIN_X_MIN = 90;
+const MAIN_X_MIN = 45;
 const MAIN_X_MAX = 910;
 
 const ACCOUNT_HEADERS = {
@@ -37,7 +37,7 @@ export async function convertWealthsimplePdf({ inputPath, account, outPath, forc
   }
 
   const extracted = await extractPdfText(pdfPath);
-  const parsed = parseWealthsimplePdfLines(extracted.lines, account);
+  const parsed = parseWealthsimplePdfLines(extracted.lines, account, { referenceDate: extracted.referenceDate });
   const csv = stringifyCsv(ACCOUNT_HEADERS[account], parsed.rows);
   writeFileSync(csvPath, csv);
 
@@ -79,6 +79,8 @@ export async function extractPdfText(pdfPath) {
       );
     }
 
+    const metadata = await doc.getMetadata().catch(() => null);
+    const referenceDate = parsePdfDate(metadata?.info?.CreationDate);
     const items = [];
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
       const page = await doc.getPage(pageNum);
@@ -96,17 +98,17 @@ export async function extractPdfText(pdfPath) {
       }
     }
 
-    return { items, lines: groupTextItemsIntoLines(items), pageCount: doc.numPages };
+    return { items, lines: groupTextItemsIntoLines(items), pageCount: doc.numPages, referenceDate };
   }, EXTRACTION_TIMEOUT_MS, 'PDF text extraction exceeded 15 seconds. Export a smaller date range and try again.');
 }
 
-export function parseWealthsimplePdfLines(lines, account) {
+export function parseWealthsimplePdfLines(lines, account, options = {}) {
   validateAccount(account);
   const mainLines = lines.filter(line => line.x >= MAIN_X_MIN && line.x <= MAIN_X_MAX);
   const candidates = findTransactionCandidates(mainLines);
   const rows = [];
   const skipped = [];
-  const dateHeaders = findDateHeaders(mainLines);
+  const dateHeaders = findDateHeaders(mainLines, options.referenceDate);
 
   for (const candidate of candidates) {
     const date = findDateForCandidate(dateHeaders, candidate);
@@ -228,22 +230,22 @@ function normalizeText(text) {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function findDateHeaders(lines) {
+function findDateHeaders(lines, referenceDate = new Date()) {
   const headers = [];
   for (const line of lines) {
     const itemMatches = line.items
-      .filter(item => item.x >= 90 && item.x <= 260 && isDateHeader(normalizeText(item.text)))
+      .filter(item => item.x >= 45 && item.x <= 260 && isDateHeader(normalizeText(item.text)))
       .map(item => ({
         page: line.page,
         x: item.x,
         y: item.y,
         text: normalizeText(item.text),
-        date: toIsoDate(normalizeText(item.text)),
+        date: toIsoDate(normalizeText(item.text), referenceDate),
       }));
     headers.push(...itemMatches);
 
-    if (line.x >= 90 && line.x <= 260 && isDateHeader(line.text)) {
-      headers.push({ ...line, date: toIsoDate(line.text) });
+    if (line.x >= 45 && line.x <= 260 && isDateHeader(line.text)) {
+      headers.push({ ...line, date: toIsoDate(line.text, referenceDate) });
     }
   }
 
@@ -257,19 +259,22 @@ function findDateHeaders(lines) {
 function findDateForCandidate(dateHeaders, candidate) {
   const { page, y } = candidate.amountLine;
   const above = dateHeaders
-    .filter(header => header.page === page && header.y > y)
-    .sort((a, b) => a.y - b.y);
+    .filter(header => header.page < page || (header.page === page && header.y > y))
+    .sort((a, b) => {
+      if (a.page !== b.page) return b.page - a.page;
+      return a.y - b.y;
+    });
   return above[0]?.date ?? null;
 }
 
 function findTransactionCandidates(lines) {
-  const amountLines = lines.filter(line => parseCadAmount(line.text) && line.x >= 680 && line.x <= 900);
+  const amountLines = lines.filter(line => parseCadAmount(line.text) && line.x >= 560 && line.x <= 900);
 
   return amountLines
     .map(amountLine => {
       const pageLines = lines.filter(line => line.page === amountLine.page);
-      const titleLine = nearestLeftLine(pageLines, amountLine.y + 11, 5);
-      const detailLine = nearestLeftLine(pageLines, amountLine.y - 11, 5);
+      const titleLine = nearestLeftLine(pageLines, amountLine.y + 10, 9);
+      const detailLine = nearestLeftLine(pageLines, amountLine.y - 10, 9);
       return { amountLine, titleLine, detailLine };
     })
     .filter(candidate => candidate.titleLine && candidate.detailLine);
@@ -277,7 +282,7 @@ function findTransactionCandidates(lines) {
 
 function nearestLeftLine(lines, targetY, tolerance) {
   return lines
-    .filter(line => line.x >= 140 && line.x < 650 && Math.abs(line.y - targetY) <= tolerance)
+    .filter(line => line.x >= 80 && line.x < 650 && Math.abs(line.y - targetY) <= tolerance)
     .sort((a, b) => Math.abs(a.y - targetY) - Math.abs(b.y - targetY))[0] ?? null;
 }
 
@@ -342,7 +347,7 @@ function creditRow(date, type, details, amount) {
 }
 
 function parseCadAmount(text) {
-  const match = text.match(/([−-])?\s*\$([\d,]+\.\d{2})\s+CAD/);
+  const match = text.match(/([−-])?\s*\$([\d,]+\.\d{2})\s*CAD/);
   if (!match) return null;
   const value = Number(match[2].replace(/,/g, ''));
   if (!Number.isFinite(value)) return null;
@@ -359,13 +364,45 @@ function formatPlainAmount(value) {
 }
 
 function isDateHeader(text) {
-  return /^[A-Z][a-z]+ \d{1,2}, \d{4}$/.test(text);
+  return text === 'Today' || text === 'Yesterday' || /^[A-Z][a-z]+ ?\d{1,2}, ?\d{4}$/.test(text);
 }
 
-function toIsoDate(text) {
-  const date = new Date(`${text} 00:00:00 UTC`);
+function toIsoDate(text, referenceDate = new Date()) {
+  if (text === 'Today') return localIsoDate(referenceDate);
+  if (text === 'Yesterday') {
+    const date = new Date(referenceDate);
+    date.setDate(date.getDate() - 1);
+    return localIsoDate(date);
+  }
+
+  const normalized = text.replace(/^([A-Z][a-z]+)(\d{1,2}),(\d{4})$/, '$1 $2, $3');
+  const date = new Date(`${normalized} 00:00:00 UTC`);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString().slice(0, 10);
+}
+
+function localIsoDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parsePdfDate(value) {
+  if (!value) return new Date();
+  const match = value.match(/^D:(\d{4})(\d{2})(\d{2})(\d{2})?(\d{2})?(\d{2})?([Z+\-])?(\d{2})?'?(\d{2})?'?/);
+  if (!match) return new Date();
+
+  const [, year, month, day, hour = '00', minute = '00', second = '00', tz, tzHour = '00', tzMinute = '00'] = match;
+  if (!tz || tz === 'Z') {
+    return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)));
+  }
+
+  const offsetMinutes = Number(tzHour) * 60 + Number(tzMinute);
+  const sign = tz === '+' ? -1 : 1;
+  const utcMs = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)) +
+    sign * offsetMinutes * 60 * 1000;
+  return new Date(utcMs);
 }
 
 function validateShape(rows, account, lines, candidates) {

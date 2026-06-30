@@ -68,6 +68,25 @@ test('uses date headers from the same PDF page as the transaction row', () => {
   assert.equal(rows[1].date, '2026-06-01');
 });
 
+test('carries date headers across Chrome page breaks', () => {
+  const lines = [
+    line('May 15, 2026', 52, 90, 1),
+    line('Coffee Shop', 97, 557, 2),
+    line('−$5.00CAD', 637, 549, 2),
+    line('Purchase Chequing', 97, 540, 2),
+    line('May 14, 2026', 52, 400, 2),
+    line('Grocery Store', 97, 101, 2),
+    line('−$25.00CAD', 637, 93, 2),
+    line('Purchase Chequing', 97, 85, 2),
+  ];
+
+  const { rows, skipped } = parseWealthsimplePdfLines(lines, 'ws_chequing');
+
+  assert.equal(skipped.length, 0);
+  assert.equal(rows[0].date, '2026-05-15');
+  assert.equal(rows[1].date, '2026-05-14');
+});
+
 test('accepts chequing credit card payment rows', () => {
   const lines = [
     line('Activity', 96, 1200),
@@ -88,6 +107,55 @@ test('accepts chequing credit card payment rows', () => {
     balance: '',
     currency: 'CAD',
   }]);
+});
+
+test('parses Chrome-exported chequing layout with compact dates and amounts', () => {
+  const lines = [
+    line('Activity', 52, 482),
+    line('Today', 52, 315),
+    line('DIALPAD CANADA', 97, 271),
+    line('$3,666.12CAD', 632, 263),
+    line('Direct deposit Chequing', 97, 254),
+    line('Cash sent', 97, 214),
+    line('−$67.00CAD', 637, 206),
+    line('$dchi Chequing', 97, 197),
+    line('June25,2026', 52, 140),
+    line('Koodo Mobile', 97, 101),
+    line('−$22.40CAD', 636, 93),
+    line('Pre-authorized debit Chequing', 97, 85),
+  ];
+
+  const { rows, skipped } = parseWealthsimplePdfLines(lines, 'ws_chequing', {
+    referenceDate: new Date('2026-06-30T04:59:27Z'),
+  });
+
+  assert.equal(skipped.length, 0);
+  assert.deepEqual(rows, [
+    {
+      date: '2026-06-29',
+      transaction: 'Direct deposit',
+      description: 'DIALPAD CANADA',
+      amount: '3666.12',
+      balance: '',
+      currency: 'CAD',
+    },
+    {
+      date: '2026-06-29',
+      transaction: '$dchi',
+      description: 'Cash sent',
+      amount: '-67.00',
+      balance: '',
+      currency: 'CAD',
+    },
+    {
+      date: '2026-06-25',
+      transaction: 'Pre-authorized debit',
+      description: 'Koodo Mobile',
+      amount: '-22.40',
+      balance: '',
+      currency: 'CAD',
+    },
+  ]);
 });
 
 test('rejects credit card account page when exporting chequing rows', () => {
@@ -305,8 +373,10 @@ test('summary includes privacy-safe skipped row examples', () => {
 
 test('parses unicode and ascii CAD signs', () => {
   assert.deepEqual(parseCadAmount('− $51.45 CAD'), { value: 51.45, negative: true });
+  assert.deepEqual(parseCadAmount('−$51.45CAD'), { value: 51.45, negative: true });
   assert.deepEqual(parseCadAmount('- $51.45 CAD'), { value: 51.45, negative: true });
   assert.deepEqual(parseCadAmount('$833.35 CAD'), { value: 833.35, negative: false });
+  assert.deepEqual(parseCadAmount('$833.35CAD'), { value: 833.35, negative: false });
 });
 
 test('CSV stringification escapes import-compatible fields', () => {
